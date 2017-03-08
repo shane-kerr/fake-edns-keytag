@@ -235,7 +235,9 @@ function parse_rdata(state, str, entry)
 
         # octal-encoded character
         } else if (str ~ /^\\[0-7][0-7][0-7]/) {
-            val = (substr(str, 2, 1) * 64) + (substr(str, 3, 1) * 8) + substr(str, 4, 1)
+            val = (substr(str, 2, 1) * 64) + \
+                  (substr(str, 3, 1) * 8) + \
+                   substr(str, 4, 1)
             add_part(sprintf("%c", val), entry)
             str = substr(str, 5)
 
@@ -468,6 +470,16 @@ function parse_continued_zone_entry(state, str, entry)
     }
 }
 
+# Initialize the zone parser.
+#
+# parameters:
+# * state: array initialized with zonefile_parse_init()
+# * file: name of the file to process
+#
+# If the file is "-", then STDIN is used.
+#
+# Note that no error checking is done. An invalid file will be
+# detected when parsing is attempted.
 function zonefile_parse_init(state, file)
 {
     # clear out any prior state
@@ -499,6 +511,27 @@ function zonefile_parse_is_continuing(state)
     return 0
 }
 
+# Return the next entry from a zone file.
+#
+# Generally the zonefile_next_rr() function is more useful.
+#
+# parameters:
+# * state: array initialized with zonefile_parse_init()
+# * entry: array returning details of the next entry found
+#
+# returns:
+# * "entry" if an entry is read
+# * "eof" on end-of-file
+# * an error string, starting with "Error:", which describes the problem
+#
+# An entry may be:
+# * "empty" for just whitespace
+# * "rr" for a resource record (RR)
+# * "$ttl" for a $TTL directive
+# * "$origin" for an $ORIGIN directive
+#
+# Note that the entry array is always modified, but should only be
+# used if "entry" is returned.
 function zonefile_parse_next(state, entry)
 {
     # clear anything out of entry
@@ -559,13 +592,29 @@ function zonefile_parse_next(state, entry)
     }
 }
 
+# Return the next resource record (RR) from a zone file.
+#
+# parameters:
+# * state: array initialized with zonefile_parse_init()
+# * entry: array returning details of the next RR found
+#
+# returns:
+# * "entry" if a RR is found
+# * "eof" on end-of-file
+# * an error string, starting with "Error:", which describes the problem
+#
+# Note that the entry array is always modified, but should only be
+# used if "entry" is returned.
 function zonefile_next_rr(state, entry)
 {
+    # read entries, skipping everything but RR
     while (1) {
         result = zonefile_parse_next(state, entry)
+        # if the result is not "entry", it is "eof" or "error"
         if (result != "entry") {
             return result
         }
+        # if we got a RR, then we are done
         if (entry["type"] == "rr") {
             return result
         }
